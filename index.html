@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SolScan DEX — Real-Time Liquidity Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --sol-purple: #9945FF;
+      --sol-green: #14F195;
+      --bg-base: #0a0e1a;
+      --bg-card: #0d1120;
+      --border: #1e2d40;
+      --text-primary: #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim: #374151;
+    }
+
+    html,
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100%;
+    }
+
+    .header {
+      background: #0f1629;
+      border-bottom: 1px solid #9945FF33;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #9945FF, #14F195);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .engine-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      border: 1px solid;
+      transition: all .3s;
+    }
+
+    .engine-badge.ws {
+      background: #14F19512;
+      border-color: #14F19540;
+      color: var(--sol-green);
+    }
+
+    .engine-badge.poll {
+      background: #fbbf2412;
+      border-color: #fbbf2440;
+      color: #fbbf24;
+    }
+
+    .engine-badge.err {
+      background: #f8717112;
+      border-color: #f8717140;
+      color: #f87171;
+    }
+
+    .engine-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1)
+      }
+
+      50% {
+        opacity: .4;
+        transform: scale(.8)
+      }
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1px;
+      background: #9945FF1a;
+      border-bottom: 1px solid #9945FF1a;
+    }
+
+    .stat-cell {
+      background: var(--bg-card);
+      padding: 12px 16px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-family: 'Space Mono', monospace;
+      margin-bottom: 4px;
+    }
+
+    .stat-val {
+      font-size: 18px;
+      font-weight: 600;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .stat-val.purple {
+      color: var(--sol-purple);
+    }
+
+    .stat-val.green {
+      color: var(--sol-green);
+    }
+
+    .stat-val.amber {
+      color: #fbbf24;
+    }
+
+    .alert-strip {
+      background: #14F19510;
+      border-bottom: 1px solid #14F19530;
+      padding: 0 24px;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .4s ease, padding .4s ease;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--sol-green);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-strip.show {
+      max-height: 40px;
+      padding: 10px 24px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .filter-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .filter-btn {
+      background: #131a2e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 12px;
+      padding: 4px 11px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .15s;
+    }
+
+    .filter-btn:hover {
+      border-color: #9945FF66;
+      color: var(--text-primary);
+    }
+
+    .filter-btn.active {
+      background: #9945FF22;
+      border-color: var(--sol-purple);
+      color: #c084fc;
+    }
+
+    .ctrl-select {
+      background: #131a2e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 12px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+    }
+
+    .search-box {
+      margin-left: auto;
+      background: #131a2e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 13px;
+      padding: 4px 12px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      width: 190px;
+      transition: border-color .15s;
+    }
+
+    .search-box:focus {
+      border-color: #9945FF66;
+    }
+
+    .search-box::placeholder {
+      color: #374151;
+    }
+
+    .refresh-btn {
+      background: #9945FF22;
+      border: 1px solid #9945FF55;
+      border-radius: 6px;
+      color: #c084fc;
+      font-size: 12px;
+      padding: 4px 13px;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .refresh-btn:hover {
+      background: #9945FF44;
+    }
+
+    .refresh-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .table-wrap {
+      padding: 14px 24px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 760px;
+    }
+
+    thead tr {
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      text-align: left;
+      padding: 7px 11px;
+      font-size: 10px;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-family: 'Space Mono', monospace;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #0c1120;
+      transition: background .12s;
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: #9945FF0a;
+    }
+
+    tbody tr.flash-new {
+      animation: rowFlash 3s ease-out forwards;
+    }
+
+    @keyframes rowFlash {
+      0% {
+        background: #14F19520
+      }
+
+      100% {
+        background: transparent
+      }
+    }
+
+    tbody tr.flash-ws {
+      animation: wsFlash 2.5s ease-out forwards;
+    }
+
+    @keyframes wsFlash {
+      0% {
+        background: #9945FF30
+      }
+
+      100% {
+        background: transparent
+      }
+    }
+
+    td {
+      padding: 10px 11px;
+      vertical-align: middle;
+    }
+
+    .token-cell {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .token-avatar {
+      width: 29px;
+      height: 29px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: 'Space Mono', monospace;
+      flex-shrink: 0;
+    }
+
+    .token-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .token-addr {
+      font-size: 10px;
+      color: #475569;
+      font-family: 'Space Mono', monospace;
+      margin-top: 2px;
+      cursor: pointer;
+    }
+
+    .token-addr:hover {
+      color: var(--sol-purple);
+      text-decoration: underline;
+    }
+
+    .src-tag {
+      display: inline-block;
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .src-ws {
+      background: #9945FF22;
+      color: #c084fc;
+      border: 1px solid #9945FF44;
+    }
+
+    .src-poll {
+      background: #1e293b;
+      color: #475569;
+      border: 1px solid #334155;
+    }
+
+    .dex-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .dex-raydium {
+      background: #9945FF22;
+      color: #c084fc;
+      border: 1px solid #9945FF44;
+    }
+
+    .dex-orca {
+      background: #14F19514;
+      color: #34d399;
+      border: 1px solid #14F19533;
+    }
+
+    .dex-meteora {
+      background: #FB8C0020;
+      color: #fb923c;
+      border: 1px solid #FB8C0033;
+    }
+
+    .dex-pumpfun {
+      background: #EC489920;
+      color: #f472b6;
+      border: 1px solid #EC489933;
+    }
+
+    .dex-other {
+      background: #1e293b;
+      color: #64748b;
+      border: 1px solid #334155;
+    }
+
+    .liq-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      color: var(--sol-green);
+    }
+
+    .liq-bar-wrap {
+      width: 60px;
+      height: 3px;
+      background: #1e293b;
+      border-radius: 2px;
+      margin-top: 5px;
+    }
+
+    .liq-bar {
+      height: 3px;
+      background: var(--sol-green);
+      border-radius: 2px;
+    }
+
+    .price-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .change-pos {
+      color: var(--sol-green);
+      font-size: 12px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .change-neg {
+      color: #f87171;
+      font-size: 12px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .vol-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .time-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+    }
+
+    .age-new {
+      color: var(--sol-green);
+    }
+
+    .age-mid {
+      color: #fbbf24;
+    }
+
+    .age-old {
+      color: #475569;
+    }
+
+    .loading-row td {
+      text-align: center;
+      padding: 48px;
+      color: #475569;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #1e293b;
+      border-top-color: var(--sol-purple);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .footer {
+      padding: 10px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'Space Mono', monospace;
+      position: sticky;
+      bottom: 0;
+      background: var(--bg-base);
+    }
+
+    .pagination {
+      display: flex;
+      gap: 5px;
+    }
+
+    .page-btn {
+      background: #131a2e;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: #64748b;
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      transition: all .12s;
+    }
+
+    .page-btn:hover,
+    .page-btn.active {
+      border-color: #9945FF66;
+      color: #c084fc;
+    }
+
+    .page-btn:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      border: 1px solid var(--sol-purple);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-family: 'Space Mono', monospace;
+      padding: 7px 18px;
+      border-radius: 8px;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    @media (max-width: 640px) {
+      .stats-bar {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .header,
+      .controls,
+      .table-wrap,
+      .footer {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="logo-area">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="8" fill="#0f1629" />
+        <path
+          d="M7 21.5h13.5c.3 0 .5-.1.7-.3l3.8-3.8c.4-.4.4-1 0-1.4L21.2 13c-.2-.2-.4-.3-.7-.3H7c-.6 0-1 .4-1 1v7c0 .6.4.8 1 .8z"
+          fill="#9945FF" opacity=".9" />
+        <path
+          d="M25 10.5H11.5c-.3 0-.5.1-.7.3L7 14.6c-.4.4-.4 1 0 1.4l3.8 3.8c.2.2.4.3.7.3H25c.6 0 1-.4 1-1v-7c0-.6-.4-1-1-1z"
+          fill="#14F195" opacity=".7" />
+      </svg>
+      <span class="logo-text">SOLSCAN DEX</span>
+    </div>
+    <div class="engine-badge err" id="engine-badge">
+      <div class="engine-dot"></div>
+      <span id="engine-label">Connecting…</span>
+    </div>
+  </div>
+
+  <div class="alert-strip" id="alert-strip">
+    <span>⚡</span><span id="alert-msg"></span>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-cell">
+      <div class="stat-label">Pools Detected</div>
+      <div class="stat-val purple" id="stat-pools">0</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Total Liquidity</div>
+      <div class="stat-val green" id="stat-liq">$0</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">New (1h)</div>
+      <div class="stat-val amber" id="stat-new">0</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">WS Detected</div>
+      <div class="stat-val purple" id="stat-ws">0</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Last Update</div>
+      <div class="stat-val" id="stat-time" style="font-size:12px">—</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span class="filter-label">DEX:</span>
+    <button class="filter-btn active" data-dex="all">All</button>
+    <button class="filter-btn" data-dex="raydium">Raydium</button>
+    <button class="filter-btn" data-dex="orca">Orca</button>
+    <button class="filter-btn" data-dex="meteora">Meteora</button>
+    <button class="filter-btn" data-dex="pump.fun">Pump.fun</button>
+    <select class="ctrl-select" id="sort-select">
+      <option value="new-first">Newest First</option>
+      <option value="liq-desc">Liquidity ↓</option>
+      <option value="liq-asc">Liquidity ↑</option>
+      <option value="change-desc">24h Change ↓</option>
+    </select>
+    <span class="filter-label">Min Liq:</span>
+    <select class="ctrl-select" id="minliq-select">
+      <option value="0">Any</option>
+      <option value="1000">$1K+</option>
+      <option value="10000">$10K+</option>
+      <option value="50000">$50K+</option>
+    </select>
+    <input class="search-box" id="search-input" type="text" placeholder="Search token / address…" />
+    <button class="refresh-btn" id="refresh-btn" onclick="pollDexscreener(true)">↻ Refresh</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Token / Pair</th>
+          <th>Source</th>
+          <th>DEX</th>
+          <th>Liquidity</th>
+          <th>Price</th>
+          <th>24h Change</th>
+          <th>Volume 24h</th>
+          <th>Detected</th>
+        </tr>
+      </thead>
+      <tbody id="pool-tbody">
+        <tr class="loading-row">
+          <td colspan="8"><span class="spinner"></span>Starting engines…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span id="footer-count">—</span>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─────────────────────────────────────────
+    //  CONFIG — paste your Helius key here
+    // ─────────────────────────────────────────
+    const HELIUS_API_KEY = '2cfd27ab-a270-4feb-aee4-c1e49a3a1640';
+    const HELIUS_RPC_WS = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+    const HELIUS_RPC_HTTP = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+    // Solana DEX program IDs
+    const PROGRAMS = {
+      '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'raydium',   // Raydium AMM v4
+      'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK': 'raydium',   // Raydium CLMM
+      'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc': 'orca',      // Orca Whirlpool
+      'LBUZKhRxPF3XUpBCjp4YzTKgLLjLibGSNKfiqdeqe59': 'meteora',   // Meteora DLMM
+      '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'pump.fun',  // Pump.fun
+    };
+
+    // Init instruction discriminators (first 8 bytes of ix data, base58)
+    const INIT_KEYWORDS = [
+      'initialize2', 'initializePool', 'InitializePool',
+      'createPool', 'openPosition', 'LiquidityPoolCreated',
+      'initializeMint', 'create'
+    ];
+
+    // ─────────────────────────────────────────
+    //  STATE
+    // ─────────────────────────────────────────
+    let poolMap = new Map();
+    let wsDetected = 0;
+    let activeDex = 'all';
+    let searchTerm = '';
+    let sortMode = 'new-first';
+    let minLiq = 0;
+    let currentPage = 1;
+    const PER_PAGE = 20;
+    const COLORS = ['#9945FF', '#14F195', '#FB8C00', '#EC4899', '#38BDF8', '#A78BFA', '#F59E0B'];
+
+    // ─────────────────────────────────────────
+    //  HELPERS
+    // ─────────────────────────────────────────
+    const avatarColor = s => { let n = 0; for (let c of (s || '?')) n += c.charCodeAt(0); return COLORS[n % COLORS.length]; };
+    const dexClass = d => { d = (d || '').toLowerCase(); if (d.includes('raydium')) return 'dex-raydium'; if (d.includes('orca')) return 'dex-orca'; if (d.includes('meteora')) return 'dex-meteora'; if (d.includes('pump')) return 'dex-pumpfun'; return 'dex-other'; };
+    const dexLabel = d => { d = (d || '').toLowerCase(); if (d.includes('raydium')) return 'Raydium'; if (d.includes('orca')) return 'Orca'; if (d.includes('meteora')) return 'Meteora'; if (d.includes('pump')) return 'Pump.fun'; return d || 'Unknown'; };
+    const fmtUSD = v => { v = parseFloat(v) || 0; if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B'; if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M'; if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K'; return '$' + v.toFixed(0); };
+    const fmtPrice = v => { v = parseFloat(v) || 0; if (!v) return '—'; if (v < 0.000001) return v.toExponential(2); if (v < 0.0001) return v.toFixed(8); if (v < 1) return v.toFixed(6); return v.toFixed(4); };
+    const shortAddr = a => a ? a.slice(0, 5) + '…' + a.slice(-4) : '';
+    function timeAgo(ts) { if (!ts) return '—'; const d = (Date.now() - ts * 1000) / 1000; if (d < 5) return 'just now'; if (d < 60) return Math.round(d) + 's ago'; if (d < 3600) return Math.round(d / 60) + 'm ago'; if (d < 86400) return Math.round(d / 3600) + 'h ago'; return Math.round(d / 86400) + 'd ago'; }
+    function ageClass(ts) { if (!ts) return ''; const d = (Date.now() - ts * 1000) / 1000; if (d < 3600) return 'age-new'; if (d < 86400) return 'age-mid'; return 'age-old'; }
+
+    function showToast(msg, dur = 2400) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), dur); }
+    function copyAddr(addr, e) { e.stopPropagation(); navigator.clipboard.writeText(addr).then(() => showToast('Address copied!')); }
+    function openDex(pa) { if (pa) window.open('https://dexscreener.com/solana/' + pa, '_blank'); }
+
+    // ─────────────────────────────────────────
+    //  ENGINE STATUS
+    // ─────────────────────────────────────────
+    function setEngine(mode) {
+      const b = document.getElementById('engine-badge'), l = document.getElementById('engine-label');
+      b.className = 'engine-badge ' + mode;
+      l.textContent = mode === 'ws' ? 'WS Live (Helius)' : mode === 'poll' ? 'Poll Fallback' : 'Connecting…';
+    }
+
+    // ─────────────────────────────────────────
+    //  ALERT STRIP
+    // ─────────────────────────────────────────
+    let alertTmr = null;
+    function showAlert(msg) {
+      const s = document.getElementById('alert-strip');
+      document.getElementById('alert-msg').textContent = msg;
+      s.classList.add('show'); clearTimeout(alertTmr);
+      alertTmr = setTimeout(() => s.classList.remove('show'), 8000);
+    }
+
+    // ─────────────────────────────────────────
+    //  POOL STORE
+    // ─────────────────────────────────────────
+    function mergePool(pool, source = 'poll') {
+      const key = pool.pairAddress || pool.id;
+      if (!key) return false;
+      const isNew = !poolMap.has(key);
+      const ex = poolMap.get(key) || {};
+      poolMap.set(key, { ...ex, ...pool, _source: isNew ? source : ex._source, _seenAt: ex._seenAt || Date.now() });
+      return isNew;
+    }
+
+    // ─────────────────────────────────────────
+    //  HELIUS WEBSOCKET ENGINE
+    //  Subscribes to all 5 DEX programs via
+    //  logsSubscribe. On every confirmed tx that
+    //  mentions an init keyword, we fetch full tx
+    //  data via Helius HTTP RPC, parse token mints,
+    //  then enrich via DexScreener.
+    // ─────────────────────────────────────────
+    let ws = null, wsDelay = 2000;
+    const pendingSigs = new Set();
+
+    function startWS() {
+      try {
+        if (ws) { try { ws.close(); } catch (e) { } }
+        ws = new WebSocket(HELIUS_RPC_WS);
+
+        ws.onopen = () => {
+          wsDelay = 2000;
+          setEngine('ws');
+          // Subscribe to each DEX program
+          Object.keys(PROGRAMS).forEach((prog, i) => {
+            ws.send(JSON.stringify({
+              jsonrpc: '2.0', id: i + 1,
+              method: 'logsSubscribe',
+              params: [{ mentions: [prog] }, { commitment: 'confirmed' }]
+            }));
+          });
+        };
+
+        ws.onmessage = async (evt) => {
+          let msg; try { msg = JSON.parse(evt.data); } catch { return; }
+          if (!msg.params?.result) return;
+
+          const val = msg.params.result.value;
+          const logs = val?.logs || [];
+          const sig = val?.signature;
+
+          // Check if this tx is a pool init
+          const isInit = logs.some(l => INIT_KEYWORDS.some(kw => l.includes(kw)));
+          if (!isInit || !sig || pendingSigs.has(sig)) return;
+          pendingSigs.add(sig);
+
+          // Identify DEX from mentioned accounts
+          const mentionedAccts = val?.accountKeys || [];
+          const progId = mentionedAccts.find(k => PROGRAMS[k]);
+          const dexSrc = PROGRAMS[progId] || 'unknown';
+
+          try {
+            // Fetch full parsed transaction from Helius
+            const txResp = await fetch(HELIUS_RPC_HTTP, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0', id: 1,
+                method: 'getTransaction',
+                params: [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
+              })
+            });
+            const txData = await txResp.json();
+            const tx = txData.result;
+            if (!tx) { pendingSigs.delete(sig); return; }
+
+            // Extract all account keys from the transaction
+            const allAccts = (tx.transaction?.message?.accountKeys || []).map(k => k.pubkey || k);
+
+            // Also grab token balances to find new mints
+            const postTokenBals = tx.meta?.postTokenBalances || [];
+            const newMints = [...new Set(postTokenBals.map(b => b.mint).filter(Boolean))];
+
+            // Try to enrich via DexScreener using mints first (fastest path)
+            let enriched = false;
+            const searchAddrs = [...newMints, ...allAccts].slice(0, 12);
+
+            for (const addr of searchAddrs) {
+              try {
+                const dxResp = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addr}`);
+                if (!dxResp.ok) continue;
+                const dxData = await dxResp.json();
+                const pairs = (dxData.pairs || []).filter(p => p.chainId === 'solana');
+                if (pairs.length) {
+                  pairs.forEach(p => {
+                    if (mergePool({ ...p, _wsDetected: true }, 'ws')) {
+                      wsDetected++;
+                      document.getElementById('stat-ws').textContent = wsDetected;
+                      const sym = p.baseToken?.symbol || 'Unknown';
+                      showAlert(`⚡ NEW: ${sym}/${p.quoteToken?.symbol || '?'} on ${dexLabel(p.dexId)} — Liq: ${fmtUSD(p.liquidity?.usd)}`);
+                      updateStats(); render();
+                    }
+                  });
+                  enriched = true; break;
+                }
+              } catch { continue; }
+            }
+
+            // If DexScreener hasn't indexed it yet — show a stub immediately
+            if (!enriched && newMints.length) {
+              const mint = newMints[0];
+              const stub = {
+                pairAddress: sig,
+                chainId: 'solana',
+                dexId: dexSrc,
+                baseToken: { symbol: 'NEW', address: mint },
+                quoteToken: { symbol: 'SOL' },
+                priceUsd: null, liquidity: { usd: null },
+                volume: { h24: null }, priceChange: { h24: null },
+                pairCreatedAt: Date.now(),
+                _wsDetected: true, _stub: true
+              };
+              if (mergePool(stub, 'ws')) {
+                wsDetected++;
+                document.getElementById('stat-ws').textContent = wsDetected;
+                showAlert(`⚡ On-chain pool init detected on ${dexLabel(dexSrc)} — enriching…`);
+                updateStats(); render();
+                // Retry enrichment at 5s, 15s, 30s
+                [5000, 15000, 30000].forEach(delay => {
+                  setTimeout(async () => {
+                    if (!poolMap.has(sig) || !poolMap.get(sig)?._stub) return;
+                    for (const addr of [...newMints, ...allAccts].slice(0, 12)) {
+                      try {
+                        const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addr}`);
+                        if (!r.ok) continue;
+                        const d = await r.json();
+                        const pairs = (d.pairs || []).filter(p => p.chainId === 'solana');
+                        if (pairs.length) {
+                          pairs.forEach(p => mergePool({ ...p, _wsDetected: true }, 'ws'));
+                          poolMap.delete(sig);
+                          updateStats(); render(); return;
+                        }
+                      } catch { continue; }
+                    }
+                  }, delay);
+                });
+              }
+            }
+          } catch (e) { console.warn('WS tx error:', e); }
+          finally { pendingSigs.delete(sig); }
+        };
+
+        ws.onerror = () => { };
+        ws.onclose = () => {
+          setEngine('poll');
+          setTimeout(startWS, wsDelay);
+          wsDelay = Math.min(wsDelay * 1.5, 20000);
+        };
+      } catch (e) { console.warn('WS init error:', e); setEngine('poll'); }
+    }
+
+    // ─────────────────────────────────────────
+    //  DEXSCREENER POLL — runs every 10s
+    //  Cycles through SOL, USDC, USDT pairs
+    //  so we catch pools missed by WS
+    // ─────────────────────────────────────────
+    const POLL_TOKENS = [
+      'So11111111111111111111111111111111111111112',
+      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+    ];
+    let pollIdx = 0;
+
+    async function pollDexscreener(manual = false) {
+      const btn = document.getElementById('refresh-btn');
+      if (manual) { btn.disabled = true; btn.textContent = '↻ Loading…'; }
+      const token = POLL_TOKENS[pollIdx % POLL_TOKENS.length]; pollIdx++;
+      try {
+        const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${token}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        // Only add pools created in the last 48h
+        const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+        (data.pairs || [])
+          .filter(p => p.chainId === 'solana' && (!p.pairCreatedAt || p.pairCreatedAt > cutoff))
+          .forEach(p => mergePool(p, 'poll'));
+        updateStats(); render();
+        document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
+      } catch (e) { if (manual) showToast('Fetch failed: ' + e.message, 3000); }
+      finally { if (manual) { btn.disabled = false; btn.textContent = '↻ Refresh'; } }
+    }
+
+    // ─────────────────────────────────────────
+    //  FILTER + SORT
+    // ─────────────────────────────────────────
+    function getFiltered() {
+      let arr = Array.from(poolMap.values()).filter(p => {
+        if (!p._stub && parseFloat(p.liquidity?.usd || 0) < minLiq) return false;
+        const dex = (p.dexId || '').toLowerCase();
+        if (activeDex !== 'all') {
+          if (activeDex === 'pump.fun' && !dex.includes('pump')) return false;
+          if (activeDex !== 'pump.fun' && !dex.includes(activeDex)) return false;
+        }
+        if (searchTerm) {
+          const q = searchTerm.toLowerCase();
+          if (!(p.baseToken?.symbol || '').toLowerCase().includes(q) &&
+            !(p.quoteToken?.symbol || '').toLowerCase().includes(q) &&
+            !(p.baseToken?.address || '').toLowerCase().includes(q)) return false;
+        }
+        return true;
+      });
+      if (sortMode === 'new-first') arr.sort((a, b) => (b._seenAt || 0) - (a._seenAt || 0));
+      if (sortMode === 'liq-desc') arr.sort((a, b) => parseFloat(b.liquidity?.usd || 0) - parseFloat(a.liquidity?.usd || 0));
+      if (sortMode === 'liq-asc') arr.sort((a, b) => parseFloat(a.liquidity?.usd || 0) - parseFloat(b.liquidity?.usd || 0));
+      if (sortMode === 'change-desc') arr.sort((a, b) => parseFloat(b.priceChange?.h24 || 0) - parseFloat(a.priceChange?.h24 || 0));
+      return arr;
+    }
+
+    // ─────────────────────────────────────────
+    //  RENDER
+    // ─────────────────────────────────────────
+    function render() {
+      const data = getFiltered(), total = data.length;
+      const pages = Math.ceil(total / PER_PAGE) || 1;
+      if (currentPage > pages) currentPage = 1;
+      const slice = data.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+      const maxL = Math.max(...data.map(p => parseFloat(p.liquidity?.usd || 0)), 1);
+
+      const tbody = document.getElementById('pool-tbody');
+      if (!slice.length) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="8">No pools yet — waiting for on-chain activity…</td></tr>';
+      } else {
+        tbody.innerHTML = slice.map(p => {
+          const sym = p.baseToken?.symbol || '??';
+          const col = avatarColor(sym);
+          const liq = parseFloat(p.liquidity?.usd || 0);
+          const barW = Math.round((liq / maxL) * 100);
+          const change = parseFloat(p.priceChange?.h24 || 0);
+          const vol = parseFloat(p.volume?.h24 || 0);
+          const ts = p.pairCreatedAt ? Math.round(p.pairCreatedAt / 1000) : null;
+          const isRecent = p._seenAt && (Date.now() - p._seenAt) < 120000;
+          const isWS = p._source === 'ws';
+          const addr = p.baseToken?.address || '';
+          const flashCls = isWS && isRecent ? 'flash-ws' : isRecent ? 'flash-new' : '';
+          const srcTag = isWS
+            ? '<span class="src-tag src-ws">WS</span>'
+            : '<span class="src-tag src-poll">Poll</span>';
+          const liqCell = p._stub
+            ? '<span style="color:#475569;font-size:11px;font-family:\'Space Mono\',monospace">indexing…</span>'
+            : `<div class="liq-val">${fmtUSD(liq)}</div><div class="liq-bar-wrap"><div class="liq-bar" style="width:${barW}%"></div></div>`;
+          return `<tr class="${flashCls}" onclick="openDex('${p.pairAddress || ''}')">
+        <td><div class="token-cell">
+          <div class="token-avatar" style="background:${col}22;color:${col};border:1px solid ${col}44">${sym.slice(0, 3).toUpperCase()}</div>
+          <div>
+            <div class="token-name">${sym} <span style="color:#475569;font-weight:400">/ ${p.quoteToken?.symbol || '?'}</span></div>
+            <div class="token-addr" onclick="copyAddr('${addr}',event)" title="Copy address">${shortAddr(addr)} 📋</div>
+          </div>
+        </div></td>
+        <td>${srcTag}</td>
+        <td><span class="dex-badge ${dexClass(p.dexId)}">${dexLabel(p.dexId)}</span></td>
+        <td>${liqCell}</td>
+        <td><span class="price-val">${p._stub ? '—' : '$' + fmtPrice(p.priceUsd)}</span></td>
+        <td><span class="${change >= 0 ? 'change-pos' : 'change-neg'}">${p._stub ? '—' : (change >= 0 ? '+' : '') + change.toFixed(2) + '%'}</span></td>
+        <td><span class="vol-val">${p._stub ? '—' : fmtUSD(vol)}</span></td>
+        <td><span class="time-val ${ageClass(ts)}">${timeAgo(ts)}</span></td>
+      </tr>`;
+        }).join('');
+      }
+      document.getElementById('footer-count').textContent = `Showing ${slice.length} of ${total} pools`;
+      renderPagination(pages);
+    }
+
+    function renderPagination(pages) {
+      const pg = document.getElementById('pagination');
+      if (pages <= 1) { pg.innerHTML = ''; return; }
+      let h = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
+      for (let i = 1; i <= pages; i++) {
+        if (pages > 7 && i > 2 && i < pages - 1 && Math.abs(i - currentPage) > 1) { if (i === 3 || i === pages - 2) h += '<span class="page-btn" style="border:none;cursor:default;color:#374151">…</span>'; continue; }
+        h += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+      }
+      h += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === pages ? 'disabled' : ''}>→</button>`;
+      pg.innerHTML = h;
+    }
+    function goPage(n) { currentPage = n; render(); window.scrollTo(0, 0); }
+
+    function updateStats() {
+      const pools = Array.from(poolMap.values());
+      const liq = pools.reduce((s, p) => s + parseFloat(p.liquidity?.usd || 0), 0);
+      const nc = pools.filter(p => p.pairCreatedAt && (Date.now() - p.pairCreatedAt) < 3600000).length;
+      document.getElementById('stat-pools').textContent = poolMap.size;
+      document.getElementById('stat-liq').textContent = fmtUSD(liq);
+      document.getElementById('stat-new').textContent = nc;
+    }
+
+    // ─────────────────────────────────────────
+    //  CONTROLS
+    // ─────────────────────────────────────────
+    document.querySelectorAll('.filter-btn[data-dex]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn[data-dex]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); activeDex = btn.dataset.dex; currentPage = 1; render();
+      });
+    });
+    document.getElementById('search-input').addEventListener('input', e => { searchTerm = e.target.value.trim(); currentPage = 1; render(); });
+    document.getElementById('sort-select').addEventListener('change', e => { sortMode = e.target.value; currentPage = 1; render(); });
+    document.getElementById('minliq-select').addEventListener('change', e => { minLiq = parseInt(e.target.value); currentPage = 1; render(); });
+
+    // ─────────────────────────────────────────
+    //  BOOT
+    // ─────────────────────────────────────────
+    (async () => {
+      // Initial poll to populate table on load
+      try { await pollDexscreener(false); } catch (e) { console.warn('Initial poll error:', e); }
+      // Start Helius WebSocket engine
+      try { startWS(); } catch (e) { console.warn('WS start error:', e); setEngine('poll'); }
+      // Poll fallback every 10s
+      setInterval(async () => { try { await pollDexscreener(false); } catch (e) { } }, 10000);
+      // Keep timestamps fresh
+      setInterval(() => { try { render(); } catch (e) { } }, 15000);
+    })();
+  </script>
+</body>
+
+</html>
